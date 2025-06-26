@@ -3,14 +3,18 @@ log_level = 2
 warn_on_root = 1
 
 [app]
-title = sriverse
-package.name = sriverse
-package.domain = org.sriverse
+title = LyricPad
+package.name = lyricpad
+package.domain = org.lyricpad
 source.dir = .
-source.include_exts = py,png,jpg,kv
-version = 1.0
+source.include_exts = py,png,jpg,kv,ttf
+version = 1.1
 
-requirements = kivy==2.3.0, pyenchant==3.2.2, pronouncing==0.2.0, nltk==3.8.1
+requirements = 
+    kivy==2.3.0,
+    pyenchant==3.2.2,
+    pronouncing==0.2.0,
+    nltk==3.8.1
 
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE
 android.api = 33
