@@ -1,3 +1,7 @@
+[buildozer]
+log_level = 2
+warn_on_root = 1
+
 [app]
 title = sriverse
 package.name = sriverse
@@ -5,6 +9,7 @@ package.domain = org.sriverse
 source.dir = .
 source.include_exts = py,png,jpg,kv
 version = 1.0
+
 requirements = 
     kivy==2.3.0,
     pyenchant==3.2.2,
