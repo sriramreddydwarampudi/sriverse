@@ -33,6 +33,7 @@ android.ndk = 25b
 android.ndk_api = 24
 android.arch = arm64-v8a
 
+
 # GitHub Actions safe path
 build_dir = .buildozer
 
@@ -44,5 +45,4 @@ pip_upgrade = true
 virtualenv = .venv
 
 
-[buildozer]
-log_level = 2
+
