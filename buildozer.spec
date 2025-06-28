@@ -42,3 +42,7 @@ pip_upgrade = true
 [python]
 # If you use .venv in GitHub Actions or Termux
 virtualenv = .venv
+
+
+[buildozer]
+log_level = 2
