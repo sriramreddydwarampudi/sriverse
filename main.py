@@ -4,16 +4,13 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.button import Button
 from kivy.core.window import Window
-from kivy.utils import platform
 import pronouncing
 import nltk
 import enchant
-import os
+import requests
 import json
 import re
-from datetime import datetime
 
 # Initialize components
 try:
@@ -42,13 +39,11 @@ class VersePad(BoxLayout):
             hint_text="Write your poem here...",
             multiline=True
         )
-                
         self.add_widget(self.text_input)
-        self.add_widget(self.export_btn)
         
-        # Analysis tabs (bottom 25% of screen)
+        # Analysis tabs (bottom 30% of screen)
         self.tabs = TabbedPanel(
-            size_hint=(1, 0.25),
+            size_hint=(1, 0.3),
             do_default_tab=False,
             tab_width=100
         )
@@ -61,292 +56,13 @@ class VersePad(BoxLayout):
         
         self.add_widget(self.tabs)
         self.text_input.bind(text=self.on_text_change)
-    
-    def get_export_path(self):
-        """Get appropriate export path based on platform"""
-        if platform == 'android':
-            from android.storage import primary_external_storage_path
-            return os.path.join(primary_external_storage_path(), 'VersePad')
-        else:
-            # Desktop/other platforms
-            return os.path.expanduser("~/VersePad")
-    
-    def export_to_txt(self, instance):
-        """Export poem and analysis to text file"""
-        try:
-            # Create export directory
-            export_dir = self.get_export_path()
-            os.makedirs(export_dir, exist_ok=True)
-            
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"poem_{timestamp}.txt"
-            filepath = os.path.join(export_dir, filename)
-            
-            # Get current text and analysis
-            poem_text = self.text_input.text
-            
-            # Generate export content
-            export_content = self.generate_export_content(poem_text)
-            
-            # Write to file
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(export_content)
-            
-            # Show success message (simplified for cross-platform)
-            print(f"Exported to: {filepath}")
-            
-        except Exception as e:
-            print(f"Export failed: {str(e)}")
-    
-    def generate_export_content(self, text):
-        """Generate formatted content for export"""
-        content = []
-        content.append("=" * 50)
-        content.append("VERSEPAD POETRY EXPORT")
-        content.append("=" * 50)
-        content.append(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        content.append("")
         
-        # Original poem
-        content.append("POEM:")
-        content.append("-" * 20)
-        content.append(text if text.strip() else "No poem text")
-        content.append("")
-        
-        if text.strip():
-            # Dictionary analysis
-            content.append("DICTIONARY ANALYSIS:")
-            content.append("-" * 20)
-            content.extend(self.export_dictionary_analysis(text))
-            content.append("")
-            
-            # Rhyme analysis
-            content.append("RHYME ANALYSIS:")
-            content.append("-" * 20)
-            content.extend(self.export_rhyme_analysis(text))
-            content.append("")
-            
-            # Rhythm analysis
-            content.append("RHYTHM ANALYSIS:")
-            content.append("-" * 20)
-            content.extend(self.export_rhythm_analysis(text))
-            content.append("")
-            
-            # Statistics
-            content.append("STATISTICS:")
-            content.append("-" * 20)
-            content.extend(self.export_statistics(text))
-        
-        return "\n".join(content)
-    
-    def export_dictionary_analysis(self, text):
-        """Export dictionary analysis in plain text"""
-        words = [w.strip('.,!?;:"()[]') for w in text.split() if w.strip()][-5:]
-        lines = []
-        
-        for word in words:
-            clean_word = re.sub(r'[^a-zA-Z]', '', word)
-            if clean_word:
-                lines.append(f"{word}:")
-                
-                # Check spelling
-                if dictionary:
-                    try:
-                        if dictionary.check(clean_word):
-                            lines.append("  Spelling: Correct")
-                        else:
-                            suggestions = dictionary.suggest(clean_word)
-                            if suggestions:
-                                lines.append(f"  Suggestions: {', '.join(suggestions[:3])}")
-                    except:
-                        lines.append("  Spelling: Error checking")
-                
-                # Get definition
-                definition = self.get_word_definition(clean_word)
-                lines.append(f"  Definition: {definition}")
-                lines.append("")
-        
-        return lines if lines else ["No words to analyze"]
-    
-    def export_rhyme_analysis(self, text):
-        """Export rhyme analysis in plain text"""
-        words = [w.strip('.,!?;:"()[]') for w in text.split() if w.strip()]
-        last_word = words[-1] if words else ""
-        last_word = re.sub(r'[^a-zA-Z]', '', last_word)
-        lines = []
-        
-        if last_word:
-            try:
-                rhymes = pronouncing.rhymes(last_word)[:15]
-                phones = pronouncing.phones_for_word(last_word)
-                
-                lines.append(f"Rhymes for '{last_word}':")
-                
-                # Add syllable division for the original word
-                syllable_div = self.get_syllable_division(last_word)
-                lines.append(f"Syllables: {syllable_div}")
-                lines.append("")
-                
-                if rhymes:
-                    lines.append("Rhyming words with syllables:")
-                    for rhyme in rhymes:
-                        rhyme_syllables = self.get_syllable_division(rhyme)
-                        lines.append(f"  {rhyme} ({rhyme_syllables})")
-                else:
-                    lines.append("No rhymes found")
-                
-                # Add phonetic information
-                if phones:
-                    lines.append(f"Phonetics: /{phones[0]}/")
-                    
-            except Exception as e:
-                lines.append(f"Rhyme analysis failed: {str(e)}")
-        else:
-            lines.append("No text to analyze")
-        
-        return lines
-    
-    def export_rhythm_analysis(self, text):
-        """Export rhythm analysis in plain text"""
-        lines = [line.strip() for line in text.split('\n') if line.strip()][-3:]
-        export_lines = []
-        
-        if lines:
-            try:
-                for line_num, line in enumerate(lines, 1):
-                    words = [w.strip('.,!?;:"()[]') for w in line.split() if w.strip()]
-                    clean_words = [re.sub(r'[^a-zA-Z]', '', w) for w in words if re.sub(r'[^a-zA-Z]', '', w)]
-                    
-                    if clean_words:
-                        export_lines.append(f"Line {line_num}: {line}")
-                        
-                        # Get stress pattern
-                        stress_pattern = []
-                        syllable_pattern = []
-                        
-                        for word in clean_words:
-                            phones = pronouncing.phones_for_word(word)
-                            if phones:
-                                stresses = pronouncing.stresses(phones[0])
-                                word_stresses = [int(s) for s in stresses if s.isdigit()]
-                                stress_pattern.extend(word_stresses)
-                                
-                                # Add syllable info
-                                syllable_div = self.get_syllable_division(word)
-                                syllable_pattern.append(syllable_div)
-                        
-                        # Display stress pattern
-                        if stress_pattern:
-                            export_lines.append(f"  Stress: {' '.join(map(str, stress_pattern))}")
-                            
-                            # Convert to rhythm symbols
-                            symbols = [self.rhythm_symbols.get(stress, "-") for stress in stress_pattern]
-                            export_lines.append(f"  Rhythm: {' '.join(symbols)}")
-                            
-                            # Add rhythm analysis
-                            rhythm_type = self.analyze_rhythm(stress_pattern)
-                            export_lines.append(f"  Type: {rhythm_type}")
-                        
-                        # Show syllable breakdown
-                        if syllable_pattern:
-                            export_lines.append(f"  Syllables: {' | '.join(syllable_pattern)}")
-                        
-                        export_lines.append("")
-                
-                # Overall rhythm summary
-                if lines:
-                    summary = self.get_rhythm_summary_text(lines)
-                    export_lines.extend(summary)
-                        
-            except Exception as e:
-                export_lines.append(f"Rhythm analysis failed: {str(e)}")
-        else:
-            export_lines.append("No text to analyze")
-        
-        return export_lines
-    
-    def export_statistics(self, text):
-        """Export statistics in plain text"""
-        word_count = len([w for w in text.split() if w.strip()])
-        line_count = len([line for line in text.split('\n') if line.strip()])
-        
-        lines = [
-            f"Words: {word_count}",
-            f"Lines: {line_count}"
-        ]
-        
-        if word_count > 0:
-            lines.append(f"Average words per line: {word_count/max(line_count, 1):.1f}")
-        
-        return lines
-    
-    def get_rhythm_summary_text(self, lines):
-        """Get rhythm summary for export"""
-        total_syllables = 0
-        total_stresses = 0
-        
-        for line in lines:
-            words = [re.sub(r'[^a-zA-Z]', '', w) for w in line.split() if re.sub(r'[^a-zA-Z]', '', w)]
-            for word in words:
-                try:
-                    phones = pronouncing.phones_for_word(word)
-                    if phones:
-                        stresses = pronouncing.stresses(phones[0])
-                        syllable_count = len([s for s in stresses if s.isdigit()])
-                        stress_count = len([s for s in stresses if s == '1'])
-                        total_syllables += syllable_count
-                        total_stresses += stress_count
-                except:
-                    continue
-        
-        summary = ["Overall Analysis:"]
-        if total_syllables > 0:
-            stress_ratio = total_stresses / total_syllables
-            summary.extend([
-                f"Total syllables: {total_syllables}",
-                f"Stressed syllables: {total_stresses}",
-                f"Stress ratio: {stress_ratio:.2f}"
-            ])
-            
-            if stress_ratio > 0.6:
-                summary.append("Style: Heavy, dramatic")
-            elif stress_ratio > 0.4:
-                summary.append("Style: Balanced rhythm")
-            else:
-                summary.append("Style: Light, flowing")
-                
-            # Suggest musical tempo
-            if total_syllables > 30:
-                summary.append("Suggested tempo: Allegro (fast) 120-168 BPM")
-            elif total_syllables > 15:
-                summary.append("Suggested tempo: Moderato (moderate) 108-120 BPM")
-            else:
-                summary.append("Suggested tempo: Andante (slow) 76-108 BPM")
-        
-        return summary
-        
-        # Musical note mapping for rhythm (using ASCII-safe alternatives)
+        # Musical note mapping for rhythm
         self.note_map = {
-            0: "u",     # unstressed = u
-            1: "S",     # stressed = S (capital)
-            2: "SS"     # very stressed = SS
+            0: "♪",    # unstressed = eighth note
+            1: "♩",    # stressed = quarter note
+            2: "♫"     # very stressed = beamed eighth notes
         }
-        
-        # Alternative visual rhythm symbols
-        self.rhythm_symbols = {
-            0: "-",     # unstressed = dash
-            1: "/",     # stressed = slash
-            2: "^"      # very stressed = caret
-        }
-        
-        # Create export button
-        self.export_btn = Button(
-            text="Export to TXT",
-            size_hint=(1, 0.05),
-            background_color=(0.2, 0.6, 0.8, 1)
-        )
-        self.export_btn.bind(on_press=self.export_to_txt)
     
     def create_tab(self, name, attr_name):
         """Helper to create consistent tabs"""
@@ -556,11 +272,9 @@ class VersePad(BoxLayout):
                         if stress_pattern:
                             output += f"Stress: {' '.join(map(str, stress_pattern))}\n"
                             
-                            # Convert to musical notes (ASCII-safe)
-                            notes = [self.note_map.get(stress, "u") for stress in stress_pattern]
-                            symbols = [self.rhythm_symbols.get(stress, "-") for stress in stress_pattern]
+                            # Convert to musical notes
+                            notes = [self.note_map.get(stress, "♪") for stress in stress_pattern]
                             output += f"Notes: {' '.join(notes)}\n"
-                            output += f"Visual: {' '.join(symbols)}\n"
                             
                             # Add rhythm analysis
                             rhythm_type = self.analyze_rhythm(stress_pattern)
@@ -640,11 +354,11 @@ class VersePad(BoxLayout):
                 
             # Suggest musical tempo
             if total_syllables > 30:
-                output += "Suggested tempo: Allegro (fast) 120-168 BPM\n"
+                output += "Suggested tempo: Allegro (fast) ♩=120-168\n"
             elif total_syllables > 15:
-                output += "Suggested tempo: Moderato (moderate) 108-120 BPM\n"
+                output += "Suggested tempo: Moderato (moderate) ♩=108-120\n"
             else:
-                output += "Suggested tempo: Andante (slow) 76-108 BPM\n"
+                output += "Suggested tempo: Andante (slow) ♩=76-108\n"
                 
             return output
         
