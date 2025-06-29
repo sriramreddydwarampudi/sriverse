@@ -1,25 +1,56 @@
-name: Build
+name: Build Android APK
 
 on: [push, pull_request]
 
 jobs:
   build-android:
-    name: Build for Android
+    name: Build APK with Buildozer
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'  # Match Buildozer's requirement
+
+      - name: Cache Buildozer dependencies
+        uses: actions/cache@v4
+        id: cache-buildozer
+        with:
+          path: |
+            ~/.buildozer
+            ~/.cache/pip
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
         with:
-          workdir: .                 # Since buildozer.spec is in the root
+          workdir: .
           buildozer_version: stable
+          # Optional: Reduce verbosity
+          options: --log-level INFO
 
-      - name: Upload built APK
+      - name: Verify APK exists
+        run: |
+          echo "Generated APK: $(ls bin/*.apk)"
+          cp bin/*.apk app.apk  # Simplify filename for upload
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: MyApp-APK
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: app.apk
+          retention-days: 7
+
+      - name: Upload Buildozer logs (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-logs
+          path: |
+            ~/.buildozer/**/*.log
+            buildozer.spec
