@@ -7,10 +7,13 @@ from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
 import pronouncing
 import nltk
-import enchant
+from symspellpy import SymSpell, Verbosity
 import requests
 import json
 import re
+import random
+from collections import defaultdict
+import os
 
 # Initialize components
 try:
@@ -19,10 +22,17 @@ try:
     nltk.download('wordnet', quiet=True)
     nltk.download('averaged_perceptron_tagger', quiet=True)
     from nltk.corpus import wordnet
-    dictionary = enchant.Dict("en_US")
 except:
-    dictionary = None
     wordnet = None
+
+# Initialize SymSpell for spelling
+sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
+dictionary_path = os.path.join(os.path.dirname(__file__), "frequency_dictionary_en_82_765.txt")
+if not os.path.exists(dictionary_path):
+    # Create a basic dictionary if file doesn't exist
+    with open(dictionary_path, "w") as f:
+        f.write("the\t23135851162\nof\t13151942776\nand\t12997637966\nto\t12136980858\na\t9081174698\n")
+sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
 
 class VersePad(BoxLayout):
     def __init__(self, **kwargs):
@@ -30,9 +40,9 @@ class VersePad(BoxLayout):
         self.orientation = 'vertical'
         Window.clearcolor = (0.95, 0.95, 0.95, 1)  # Light gray background
         
-        # Text input (top 70% of screen)
+        # Text input (top 65% of screen)
         self.text_input = TextInput(
-            size_hint=(1, 0.7),
+            size_hint=(1, 0.65),
             font_size=16,
             background_color=(1, 1, 1, 1),
             foreground_color=(0, 0, 0, 1),
@@ -41,9 +51,9 @@ class VersePad(BoxLayout):
         )
         self.add_widget(self.text_input)
         
-        # Analysis tabs (bottom 30% of screen)
+        # Analysis tabs (bottom 35% of screen)
         self.tabs = TabbedPanel(
-            size_hint=(1, 0.3),
+            size_hint=(1, 0.35),
             do_default_tab=False,
             tab_width=100
         )
@@ -51,6 +61,7 @@ class VersePad(BoxLayout):
         # Create tabs
         self.create_tab("Dictionary", "dict_tab")
         self.create_tab("Rhymes", "rhyme_tab")
+        self.create_tab("Advanced", "advanced_tab")
         self.create_tab("Meter", "meter_tab")
         self.create_tab("Grammar", "grammar_tab")
         
@@ -89,6 +100,7 @@ class VersePad(BoxLayout):
     def update_analyses(self, text):
         self.update_dictionary(text)
         self.update_rhymes(text)
+        self.update_advanced_features(text)
         self.update_meter(text)
         self.update_grammar(text)
     
@@ -113,70 +125,37 @@ class VersePad(BoxLayout):
         try:
             phones = pronouncing.phones_for_word(word)
             if phones:
-                # Convert phonemes to syllables (simplified approach)
-                phoneme_list = phones[0].split()
-                syllables = []
-                current_syllable = []
-                
-                for phoneme in phoneme_list:
-                    current_syllable.append(phoneme)
-                    # If phoneme contains a vowel sound (0, 1, or 2), it's a syllable nucleus
-                    if any(char in phoneme for char in '012'):
-                        syllables.append(''.join(current_syllable))
-                        current_syllable = []
-                
-                # Add any remaining phonemes to the last syllable
-                if current_syllable and syllables:
-                    syllables[-1] += ''.join(current_syllable)
-                elif current_syllable:
-                    syllables.append(''.join(current_syllable))
-                
-                # Convert back to approximate syllables
-                syllable_count = len([s for s in syllables if any(c in s for c in '012')])
+                # Convert phonemes to syllables
+                syllable_count = pronouncing.syllable_count(phones[0])
                 if syllable_count <= 1:
                     return word
-                else:
-                    # Simple syllable division approximation
-                    return self.divide_syllables_simple(word, syllable_count)
+                
+                # Use CMU dict for syllable breaks
+                phones_list = phones[0].split()
+                syllables = []
+                current = []
+                
+                for phone in phones_list:
+                    current.append(phone)
+                    # Syllable boundaries based on vowel sounds
+                    if any(char in phone for char in '012'):
+                        syllables.append(''.join(current))
+                        current = []
+                
+                # Handle any remaining consonants
+                if current:
+                    if syllables:
+                        syllables[-1] += ''.join(current)
+                    else:
+                        syllables.append(''.join(current))
+                
+                # Create hyphenated representation
+                return '-'.join(syllables)
             return word
         except:
             return word
     
-    def divide_syllables_simple(self, word, syllable_count):
-        """Simple syllable division based on common patterns"""
-        if syllable_count <= 1:
-            return word
-        
-        # Very basic syllable division rules
-        vowels = 'aeiouAEIOU'
-        syllables = []
-        current = ""
-        vowel_count = 0
-        
-        for i, char in enumerate(word):
-            current += char
-            if char in vowels:
-                vowel_count += 1
-                # If we have enough vowels and there's more text, try to split
-                if vowel_count > 1 and i < len(word) - 1:
-                    # Look for consonant clusters to split on
-                    if i + 1 < len(word) and word[i + 1] not in vowels:
-                        # Find a good place to split
-                        split_point = len(current) - 1
-                        syllables.append(current[:split_point])
-                        current = current[split_point:]
-                        vowel_count = 1
-        
-        if current:
-            syllables.append(current)
-        
-        return "-".join(syllables) if len(syllables) > 1 else word
-    
     def update_dictionary(self, text):
-        if dictionary is None:
-            self.dict_tab.text = "Dictionary unavailable"
-            return
-            
         words = [w.strip('.,!?;:"()[]') for w in text.split() if w.strip()][-5:]  # Last 5 words
         output = ""
         
@@ -186,15 +165,11 @@ class VersePad(BoxLayout):
                 output += f"\n[b][color=3333ff]{word}:[/color][/b]"
                 
                 # Check spelling
-                try:
-                    if dictionary.check(clean_word):
-                        output += " ✓ (correct spelling)"
-                    else:
-                        suggestions = dictionary.suggest(clean_word)
-                        if suggestions:
-                            output += f"\n  [color=ff6600]Suggestions: {', '.join(suggestions[:3])}[/color]"
-                except:
-                    output += "\n  Error checking spelling"
+                suggestions = sym_spell.lookup(clean_word.lower(), Verbosity.CLOSEST, max_edit_distance=2)
+                if suggestions and suggestions[0].term == clean_word.lower():
+                    output += " ✓ (correct spelling)"
+                elif suggestions:
+                    output += f"\n  [color=ff6600]Suggestions: {', '.join(sug.term for sug in suggestions[:3])}[/color]"
                 
                 # Get definition
                 definition = self.get_word_definition(clean_word)
@@ -220,12 +195,12 @@ class VersePad(BoxLayout):
                 output += f"[color=666666]Syllables: {syllable_div}[/color]\n\n"
                 
                 if rhymes:
-                    output += "[b]Rhyming words with syllables:[/b]\n"
+                    output += "[b]Perfect rhymes:[/b]\n"
                     for rhyme in rhymes:
                         rhyme_syllables = self.get_syllable_division(rhyme)
                         output += f"• {rhyme} ({rhyme_syllables})\n"
                 else:
-                    output += "No rhymes found"
+                    output += "No perfect rhymes found"
                 
                 # Add phonetic information
                 if phones:
@@ -237,6 +212,118 @@ class VersePad(BoxLayout):
             output = "No text to analyze"
         
         self.rhyme_tab.text = output
+    
+    def update_advanced_features(self, text):
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        output = "[b][color=9933cc]Advanced Poetic Features:[/color][/b]\n\n"
+        
+        if not lines:
+            self.advanced_tab.text = output + "No text to analyze"
+            return
+        
+        # Internal rhymes
+        internal_output = self.find_internal_rhymes(lines[-1] if lines else "")
+        output += internal_output + "\n"
+        
+        # Multi-syllabic rhyme suggestions
+        if lines:
+            last_word = lines[-1].split()[-1] if lines[-1].split() else ""
+            last_word = re.sub(r'[^a-zA-Z]', '', last_word)
+            if last_word:
+                multi_output = self.generate_multi_syllabic_rhymes(last_word)
+                output += multi_output
+            else:
+                output += "No word for multi-syllabic rhymes"
+        else:
+            output += "No text for multi-syllabic rhymes"
+        
+        self.advanced_tab.text = output
+    
+    def find_internal_rhymes(self, line):
+        """Find internal rhymes within a line"""
+        if not line:
+            return "No line to analyze for internal rhymes"
+        
+        words = [re.sub(r'[^a-zA-Z]', '', w.lower()) for w in line.split()]
+        words = [w for w in words if w and len(w) > 2]  # Only consider words >2 letters
+        
+        rhyme_pairs = []
+        rhyme_groups = defaultdict(list)
+        
+        # For each word, find words later in the line that rhyme with it
+        for i, word in enumerate(words):
+            rhymes = set(pronouncing.rhymes(word))
+            for j in range(i+1, len(words)):
+                if words[j] in rhymes and words[j] != word:
+                    rhyme_pairs.append((word, words[j]))
+                    rhyme_groups[word].append(words[j])
+        
+        output = "[b]Internal Rhymes:[/b]\n"
+        if not rhyme_pairs:
+            output += "No internal rhymes detected\n"
+            return output
+        
+        # Group rhymes
+        for word, rhymes in rhyme_groups.items():
+            output += f"• '{word}' rhymes with: {', '.join(rhymes)}\n"
+        
+        output += "\n[color=666666]Internal rhymes occur when words within the same line sound similar[/color]"
+        return output
+    
+    def generate_multi_syllabic_rhymes(self, word):
+        """Generate multi-syllabic rhyme suggestions"""
+        try:
+            syllable_div = self.get_syllable_division(word)
+            syllables = syllable_div.split('-')
+            
+            output = f"[b]Multi-syllabic Rhymes for '{word}':[/b]\n"
+            output += f"Syllables: {syllable_div}\n\n"
+            
+            # Find rhymes for the last syllable
+            last_syllable = syllables[-1]
+            last_syllable_rhymes = set()
+            
+            # Try to find words that end with similar sound
+            for rhyme in pronouncing.rhymes(word):
+                if rhyme != word:
+                    last_syllable_rhymes.add(rhyme)
+            
+            # Try to find words that contain the last syllable
+            phones = pronouncing.phones_for_word(word)
+            if phones:
+                word_ending = phones[0].split()[-2:]  # Last 2 phonemes
+                for entry in pronouncing.search("".join(word_ending)):
+                    if entry != word:
+                        last_syllable_rhymes.add(entry)
+            
+            # Convert to list and limit
+            last_syllable_rhymes = list(last_syllable_rhymes)[:10]
+            
+            if last_syllable_rhymes:
+                output += f"Rhymes with '{syllables[-1]}':\n"
+                for rhyme in last_syllable_rhymes:
+                    output += f"• {rhyme}\n"
+                
+                # Generate phrase suggestions
+                output += "\n[b]Phrase Suggestions:[/b]\n"
+                phrase_patterns = [
+                    f"the {random.choice(last_syllable_rhymes)} {random.choice(['flows', 'grows', 'shows', 'glows'])}",
+                    f"my {random.choice(last_syllable_rhymes)} {random.choice(['knows', 'throws', 'sows', 'blows'])}",
+                    f"when {random.choice(last_syllable_rhymes)} {random.choice(['arose', 'dispose', 'expose', 'impose'])}",
+                    f"a {random.choice(last_syllable_rhymes)} in the {random.choice(['night', 'light', 'sight', 'might'])}"
+                ]
+                
+                for i, phrase in enumerate(phrase_patterns[:3]):
+                    output += f"{i+1}. {phrase.capitalize()}\n"
+                
+                output += f"\nExample: For '{word}', try phrases like '{random.choice(phrase_patterns)}'"
+            else:
+                output += f"No multi-syllabic rhymes found for '{syllables[-1]}'"
+            
+            output += "\n\n[color=666666]Multi-syllabic rhymes match the ending sounds across multiple syllables[/color]"
+            return output
+        except Exception as e:
+            return f"Multi-syllabic rhyme generation failed: {str(e)}"
     
     def update_meter(self, text):
         lines = [line.strip() for line in text.split('\n') if line.strip()][-3:]  # Last 3 lines
