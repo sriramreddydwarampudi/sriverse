@@ -25,19 +25,19 @@ jobs:
             ~/.cache/pip
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
 
-      - name: Build APK with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
+      - name: Build APK with Buildozer (with log capture)
         id: buildozer
-        with:
-          workdir: .
-          buildozer_version: stable
-          # Optional: Reduce verbosity
-          options: --log-level INFO
-
-      - name: Verify APK exists
         run: |
-          echo "Generated APK: $(ls bin/*.apk)"
-          cp bin/*.apk app.apk  # Simplify filename for upload
+          # Run buildozer and capture output to file while still showing in console
+          buildozer android debug 2>&1 | tee buildozer.log
+          # Store the APK path for later steps
+          echo "APK_PATH=$(ls bin/*.apk)" >> $GITHUB_OUTPUT
+        working-directory: .
+
+      - name: Verify and prepare APK
+        run: |
+          echo "Generated APK: ${{ steps.buildozer.outputs.APK_PATH }}"
+          cp "${{ steps.buildozer.outputs.APK_PATH }}" app.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -46,11 +46,18 @@ jobs:
           path: app.apk
           retention-days: 7
 
-      - name: Upload Buildozer logs (debug)
+      - name: Upload Buildozer logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: buildozer-logs
           path: |
+            buildozer.log
             ~/.buildozer/**/*.log
             buildozer.spec
+
+      - name: Check for build errors
+        if: failure()
+        run: |
+          echo "Build failed! Check the uploaded logs for details."
+          grep -i "error" buildozer.log || echo "No obvious errors found in logs"
