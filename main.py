@@ -7,13 +7,10 @@ from kivy.uix.scrollview import ScrollView
 from kivy.core.window import Window
 import pronouncing
 import nltk
-from symspellpy import SymSpell, Verbosity
-import requests
-import json
 import re
 import random
 from collections import defaultdict
-import os
+import difflib
 
 # Initialize components
 try:
@@ -21,18 +18,12 @@ try:
     nltk.download('cmudict', quiet=True)
     nltk.download('wordnet', quiet=True)
     nltk.download('averaged_perceptron_tagger', quiet=True)
-    from nltk.corpus import wordnet
+    nltk.download('words', quiet=True)
+    from nltk.corpus import wordnet, words
+    english_words = set(words.words())
 except:
     wordnet = None
-
-# Initialize SymSpell for spelling
-sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-dictionary_path = os.path.join(os.path.dirname(__file__), "frequency_dictionary_en_82_765.txt")
-if not os.path.exists(dictionary_path):
-    # Create a basic dictionary if file doesn't exist
-    with open(dictionary_path, "w") as f:
-        f.write("the\t23135851162\nof\t13151942776\nand\t12997637966\nto\t12136980858\na\t9081174698\n")
-sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
+    english_words = set()
 
 class VersePad(BoxLayout):
     def __init__(self, **kwargs):
@@ -155,6 +146,20 @@ class VersePad(BoxLayout):
         except:
             return word
     
+    def is_word_spelled_correctly(self, word):
+        """Check spelling using NLTK words corpus"""
+        return word.lower() in english_words
+    
+    def get_spelling_suggestions(self, word):
+        """Get spelling suggestions using similarity matching"""
+        if not english_words:
+            return []
+        
+        word = word.lower()
+        # Find similar words in the dictionary
+        similar_words = difflib.get_close_matches(word, english_words, n=3, cutoff=0.7)
+        return similar_words
+    
     def update_dictionary(self, text):
         words = [w.strip('.,!?;:"()[]') for w in text.split() if w.strip()][-5:]  # Last 5 words
         output = ""
@@ -165,11 +170,14 @@ class VersePad(BoxLayout):
                 output += f"\n[b][color=3333ff]{word}:[/color][/b]"
                 
                 # Check spelling
-                suggestions = sym_spell.lookup(clean_word.lower(), Verbosity.CLOSEST, max_edit_distance=2)
-                if suggestions and suggestions[0].term == clean_word.lower():
+                if self.is_word_spelled_correctly(clean_word):
                     output += " ✓ (correct spelling)"
-                elif suggestions:
-                    output += f"\n  [color=ff6600]Suggestions: {', '.join(sug.term for sug in suggestions[:3])}[/color]"
+                else:
+                    suggestions = self.get_spelling_suggestions(clean_word)
+                    if suggestions:
+                        output += f"\n  [color=ff6600]Suggestions: {', '.join(suggestions)}[/color]"
+                    else:
+                        output += f"\n  [color=ff6600]Possible misspelling[/color]"
                 
                 # Get definition
                 definition = self.get_word_definition(clean_word)
@@ -227,11 +235,15 @@ class VersePad(BoxLayout):
         
         # Multi-syllabic rhyme suggestions
         if lines:
-            last_word = lines[-1].split()[-1] if lines[-1].split() else ""
-            last_word = re.sub(r'[^a-zA-Z]', '', last_word)
-            if last_word:
-                multi_output = self.generate_multi_syllabic_rhymes(last_word)
-                output += multi_output
+            last_line = lines[-1]
+            if last_line.split():
+                last_word = last_line.split()[-1]
+                last_word = re.sub(r'[^a-zA-Z]', '', last_word)
+                if last_word:
+                    multi_output = self.generate_multi_syllabic_rhymes(last_word)
+                    output += multi_output
+                else:
+                    output += "No word for multi-syllabic rhymes"
             else:
                 output += "No word for multi-syllabic rhymes"
         else:
@@ -283,44 +295,41 @@ class VersePad(BoxLayout):
             last_syllable = syllables[-1]
             last_syllable_rhymes = set()
             
-            # Try to find words that end with similar sound
-            for rhyme in pronouncing.rhymes(word):
-                if rhyme != word:
-                    last_syllable_rhymes.add(rhyme)
+            # Get words that rhyme with the target word
+            all_rhymes = pronouncing.rhymes(word)
             
-            # Try to find words that contain the last syllable
-            phones = pronouncing.phones_for_word(word)
-            if phones:
-                word_ending = phones[0].split()[-2:]  # Last 2 phonemes
-                for entry in pronouncing.search("".join(word_ending)):
-                    if entry != word:
-                        last_syllable_rhymes.add(entry)
+            # Find multi-syllabic rhymes (words with same ending syllables)
+            multi_syllabic_rhymes = []
+            for rhyme in all_rhymes:
+                # Skip single-syllable rhymes
+                if pronouncing.syllable_count(pronouncing.phones_for_word(rhyme)[0]) > 1:
+                    multi_syllabic_rhymes.append(rhyme)
             
-            # Convert to list and limit
-            last_syllable_rhymes = list(last_syllable_rhymes)[:10]
+            # Limit to 10 results
+            multi_syllabic_rhymes = multi_syllabic_rhymes[:10]
             
-            if last_syllable_rhymes:
-                output += f"Rhymes with '{syllables[-1]}':\n"
-                for rhyme in last_syllable_rhymes:
-                    output += f"• {rhyme}\n"
+            if multi_syllabic_rhymes:
+                output += f"[b]Multi-syllabic rhymes:[/b]\n"
+                for rhyme in multi_syllabic_rhymes:
+                    rhyme_syllables = self.get_syllable_division(rhyme)
+                    output += f"• {rhyme} ({rhyme_syllables})\n"
                 
-                # Generate phrase suggestions
+                # Generate phrase suggestions using the rhymes
                 output += "\n[b]Phrase Suggestions:[/b]\n"
-                phrase_patterns = [
-                    f"the {random.choice(last_syllable_rhymes)} {random.choice(['flows', 'grows', 'shows', 'glows'])}",
-                    f"my {random.choice(last_syllable_rhymes)} {random.choice(['knows', 'throws', 'sows', 'blows'])}",
-                    f"when {random.choice(last_syllable_rhymes)} {random.choice(['arose', 'dispose', 'expose', 'impose'])}",
-                    f"a {random.choice(last_syllable_rhymes)} in the {random.choice(['night', 'light', 'sight', 'might'])}"
-                ]
-                
-                for i, phrase in enumerate(phrase_patterns[:3]):
-                    output += f"{i+1}. {phrase.capitalize()}\n"
-                
-                output += f"\nExample: For '{word}', try phrases like '{random.choice(phrase_patterns)}'"
+                if multi_syllabic_rhymes:
+                    rhyme_word = random.choice(multi_syllabic_rhymes)
+                    output += f"Try: [i]'{word}'[/i] with [i]'{rhyme_word}'[/i]\n"
+                    output += f"Example: [color=666666]\"The {word} in the {rhyme_word}\"[/color]\n\n"
+                    
+                    # Create a simple phrase pattern
+                    subjects = ["the", "my", "your", "our", "that"]
+                    verbs = ["shines", "glows", "flows", "grows", "shows"]
+                    rhyme_word2 = random.choice(multi_syllabic_rhymes) if len(multi_syllabic_rhymes) > 1 else rhyme_word
+                    output += f"Pattern: [color=3333ff][i]{random.choice(subjects)} {word} {random.choice(verbs)} like {rhyme_word2}[/i][/color]"
             else:
-                output += f"No multi-syllabic rhymes found for '{syllables[-1]}'"
+                output += "No multi-syllabic rhymes found\n"
             
-            output += "\n\n[color=666666]Multi-syllabic rhymes match the ending sounds across multiple syllables[/color]"
+            output += "\n[color=666666]Multi-syllabic rhymes match the ending sounds across multiple syllables[/color]"
             return output
         except Exception as e:
             return f"Multi-syllabic rhyme generation failed: {str(e)}"
