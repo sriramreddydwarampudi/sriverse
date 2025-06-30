@@ -1,63 +1,37 @@
-name: Build Android APK
+name: Build
 
 on: [push, pull_request]
 
 jobs:
   build-android:
-    name: Build APK with Buildozer
+    name: Build for Android
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'  # Match Buildozer's requirement
+      - name: Install required dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y zip unzip libncurses5 libstdc++6 libffi-dev libssl-dev
 
-      - name: Cache Buildozer dependencies
-        uses: actions/cache@v4
-        id: cache-buildozer
-        with:
-          path: |
-            ~/.buildozer
-            ~/.cache/pip
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-
-      - name: Build APK with Buildozer (with log capture)
+      - name: Build APK with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
         id: buildozer
-        run: |
-          # Run buildozer and capture output to file while still showing in console
-          buildozer android debug 2>&1 | tee buildozer.log
-          # Store the APK path for later steps
-          echo "APK_PATH=$(ls bin/*.apk)" >> $GITHUB_OUTPUT
-        working-directory: .
+        with:
+          workdir: .
+          buildozer_version: stable
 
-      - name: Verify and prepare APK
+      - name: Find built APK path
+        id: apk
         run: |
-          echo "Generated APK: ${{ steps.buildozer.outputs.APK_PATH }}"
-          cp "${{ steps.buildozer.outputs.APK_PATH }}" app.apk
+          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
+          echo "::set-output name=apk::$APK_PATH"
 
-      - name: Upload APK artifact
+      - name: Upload built APK
         uses: actions/upload-artifact@v4
         with:
           name: MyApp-APK
-          path: app.apk
-          retention-days: 7
-
-      - name: Upload Buildozer logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: buildozer-logs
-          path: |
-            buildozer.log
-            ~/.buildozer/**/*.log
-            buildozer.spec
-
-      - name: Check for build errors
-        if: failure()
-        run: |
-          echo "Build failed! Check the uploaded logs for details."
-          grep -i "error" buildozer.log || echo "No obvious errors found in logs"
+          path: ${{ steps.apk.outputs.apk }}
