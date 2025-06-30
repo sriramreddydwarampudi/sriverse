@@ -9,59 +9,48 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt update
           sudo apt install -y zip unzip libncurses6 libstdc++6 libffi-dev libssl-dev
 
-      - name: Build APK with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          workdir: .
-          buildozer_version: stable
+      - name: Build APK using Buildozer
+        run: |
+          pip install buildozer
+          buildozer android debug | tee buildozer_output.log
 
-      - name: Find built APK path
+      - name: Find APK path
         id: find_apk
         run: |
-          echo "Looking for APK..."
-          APK_PATH=$(find . -type f -name "*.apk" | grep bin | head -n 1 || true)
-          if [ -z "$APK_PATH" ]; then
-            echo "❌ APK not found. Build likely failed."
-            exit 1
-          fi
-          echo "✅ APK found at: $APK_PATH"
+          APK_PATH=$(find bin -name "*.apk" | head -n 1)
           echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-          echo "APK_NAME=$(basename $APK_PATH)" >> $GITHUB_ENV
+          echo "apk=$APK_PATH" >> $GITHUB_OUTPUT
 
-      - name: Push APK to apk-output branch
+      - name: Push APK to `apk-output` branch
         run: |
           mkdir upload
           cp "$APK_PATH" upload/
           cd upload
-
+          
+          git init
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-
-          git init
           git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git checkout -b apk-output
           git add .
           git commit -m "Upload APK - $(date)"
           git push --force origin apk-output
-        env:
-          APK_PATH: ${{ env.APK_PATH }}
 
-      - name: Show tail of Buildozer log on failure
+      - name: Show Build Logs (if failure)
         if: failure()
         run: |
-          echo "==== Last 100 lines of Buildozer Log ===="
-          tail -n 100 .buildozer/android/platform/build*/dists/*/build/log.txt || true
+          echo "=== Searching for build logs ==="
+          find . -name "log.txt"
+          echo "=== Showing last 100 lines of buildozer_output.log ==="
+          tail -n 100 buildozer_output.log || echo "Log file not found"
