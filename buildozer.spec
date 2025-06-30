@@ -21,7 +21,7 @@ android.permissions = INTERNET,READ_MEDIA_IMAGES,READ_MEDIA_AUDIO,READ_MEDIA_VID
 android.api = 33
 android.minapi = 21
 android.ndk_api = 33
-android.ndk = 23b
+android.ndk = 25b
 
 # ✅ Build for modern architecture
 android.archs = armeabi-v7a,arm64-v8a
