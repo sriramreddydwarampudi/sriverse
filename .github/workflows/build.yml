@@ -14,7 +14,7 @@ jobs:
       - name: Install required dependencies
         run: |
           sudo apt update
-          sudo apt install -y zip unzip libncurses5 libstdc++6 libffi-dev libssl-dev
+          sudo apt install -y zip unzip libncurses6 libstdc++6 libffi-dev libssl-dev
 
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
