@@ -20,24 +20,29 @@ jobs:
           sudo apt update
           sudo apt install -y zip unzip libncurses6 libstdc++6 libffi-dev libssl-dev
 
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade buildozer
+
       - name: Build APK using Buildozer
         run: |
-          pip install buildozer
           buildozer android debug | tee buildozer_output.log
 
       - name: Find APK path
         id: find_apk
         run: |
-          APK_PATH=$(find bin -name "*.apk" | head -n 1)
+          APK_PATH=$(find bin/ -type f -name "*.apk" | head -n 1)
+          echo "APK_PATH=$APK_PATH"
           echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
           echo "apk=$APK_PATH" >> $GITHUB_OUTPUT
+          test -f "$APK_PATH" || (echo "❌ APK not found. Check build logs." && exit 1)
 
       - name: Push APK to `apk-output` branch
         run: |
           mkdir upload
           cp "$APK_PATH" upload/
           cd upload
-          
+
           git init
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
@@ -47,10 +52,8 @@ jobs:
           git commit -m "Upload APK - $(date)"
           git push --force origin apk-output
 
-      - name: Show Build Logs (if failure)
+      - name: Show Build Logs (on failure)
         if: failure()
         run: |
-          echo "=== Searching for build logs ==="
-          find . -name "log.txt"
           echo "=== Showing last 100 lines of buildozer_output.log ==="
           tail -n 100 buildozer_output.log || echo "Log file not found"
