@@ -13,13 +13,30 @@ jobs:
 
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
         with:
-          workdir: .                 # Since buildozer.spec is in the root
+          workdir: .
           buildozer_version: stable
 
-      - name: Upload built APK
+      - name: Find and Upload APK
+        run: |
+          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          echo "APK found at: $APK_PATH"
+          if [ -f "$APK_PATH" ]; then
+            echo "Uploading $APK_PATH"
+            echo "apk_path=$APK_PATH" >> $GITHUB_ENV
+          else
+            echo "❌ APK not found"
+            exit 1
+          fi
+      - name: Upload APK
+        if: env.apk_path != ''
         uses: actions/upload-artifact@v4
         with:
           name: MyApp-APK
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: ${{ env.apk_path }}
+
+      - name: Show Build Logs (on failure)
+        if: failure()
+        run: |
+          echo "=== Showing last 100 lines of buildozer_output.log ==="
+          tail -n 100 buildozer_output.log || echo "Log file not found"
