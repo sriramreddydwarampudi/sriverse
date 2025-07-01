@@ -1,26 +1,25 @@
-[app]
-title = VersePad
-package.name = versepad
-package.domain = org.versepad.app
+name: Build
 
-source.dir = .
-source.include_exts = py,txt,kv
-version = 1.0.0
+on: [push, pull_request]
 
-requirements = python3,kivy==2.2.1,nltk,pronouncing,regex,setuptools
+jobs:
+  build-android:
+    name: Build for Android
+    runs-on: ubuntu-latest
 
-orientation = portrait
-fullscreen = 0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
-android.api = 33
-android.minapi = 21
-android.ndk = 25b
-android.ndk_api = 33
-android.archs = armeabi-v7a,arm64-v8a
-p4a.branch = master
-p4a.bootstrap = sdl2
+      - name: Build APK with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          workdir: .                 # Since buildozer.spec is in the root
+          buildozer_version: stable
 
-[buildozer]
-log_level = 2
-warn_on_root = 1
+      - name: Upload built APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyApp-APK
+          path: ${{ steps.buildozer.outputs.filename }}
