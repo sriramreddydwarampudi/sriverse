@@ -2,24 +2,29 @@
 title = VersePad
 package.name = versepad
 package.domain = org.versepad.app
-
-source.dir = .
-source.include_exts = py,txt,kv
 version = 1.0.0
 
-requirements = python3,kivy==2.2.1,nltk,pronouncing,regex,setuptools,cython
+source.dir = .
+source.include_exts = py,kv,txt
+
+requirements = python3,kivy==2.2.1,nltk,pronouncing,regex,setuptools,cython==0.29.36
 
 orientation = portrait
 fullscreen = 0
 
-android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
+android.permissions = INTERNET,READ_MEDIA_IMAGES,READ_MEDIA_AUDIO,READ_MEDIA_VIDEO
+
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
 android.ndk_api = 33
 android.archs = armeabi-v7a,arm64-v8a
-p4a.branch = master
+
 p4a.bootstrap = sdl2
+p4a.branch = master
+
+android.allow_backup = True
+android.logcat_filters = *:S python:D
 
 [buildozer]
 log_level = 2
