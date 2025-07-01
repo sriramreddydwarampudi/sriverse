@@ -10,31 +10,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Preinstall Cython for native .pyx compilation
-        run: |
-          pip install cython==0.29.36
+      - name: Preinstall Cython (to avoid missing C files)
+        run: pip install cython==0.29.36
 
       - name: Build APK with Buildozer
-        uses: kivy/buildozer-action@v1.0.0
+        uses: ArtemSBulgakov/buildozer-action@v1
         with:
-          command: buildozer android debug
+          workdir: .
+          buildozer_version: stable
+          command: android debug --allow-minsdk-ndkapi-mismatch
 
-      - name: Upload built APK
+      - name: Find and Upload APK
+        run: |
+          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          echo "APK found at: $APK_PATH"
+          if [ -f "$APK_PATH" ]; then
+            echo "apk_path=$APK_PATH" >> $GITHUB_ENV
+          else
+            echo "❌ APK not found"
+            exit 1
+          fi
+
+      - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: versepad-apk
-          path: bin/*.apk
+          path: ${{ env.apk_path }}
 
-      - name: Show Build Logs (on failure)
+      - name: Show Build Logs on Failure
         if: failure()
         run: |
-          echo "🔍 Build failed — showing log"
-          find . -name "*.log" | xargs -I{} tail -n 50 {}
+          echo "🔍 Build failed. Showing logs from build directory"
+          find . -name "*.log" | xargs -r tail -n 50 || echo "No logs found"
