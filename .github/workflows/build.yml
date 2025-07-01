@@ -1,13 +1,14 @@
-name: Build and Upload APK to Repo
+name: Build
 
 on: [push, pull_request]
 
 jobs:
   build-android:
+    name: Build for Android
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -15,26 +16,22 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install system dependencies
+      - name: Install Python dependencies (Cython, wheel, etc.)
         run: |
-          sudo apt update
-          sudo apt install -y zip unzip libncurses6 libstdc++6 libffi-dev libssl-dev
+          pip install --upgrade cython wheel setuptools
 
-      - name: Install Buildozer & Python deps
-        run: |
-          pip install --upgrade buildozer cython wheel setuptools
+      - name: Build APK with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          workdir: .
+          buildozer_version: stable
 
-      - name: Build APK using Buildozer
-        run: |
-          buildozer android debug | tee buildozer_output.log
-
-      - name: Upload APK as GitHub Artifact
-        if: success()
+      - name: Upload built APK
         uses: actions/upload-artifact@v4
         with:
-          name: sriverse-apk
-          path: |
-            bin/**/*.apk
+          name: MyApp-APK
+          path: ${{ steps.buildozer.outputs.filename }}
 
       - name: Show Build Logs (on failure)
         if: failure()
