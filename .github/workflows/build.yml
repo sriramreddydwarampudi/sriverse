@@ -11,18 +11,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python build deps
-        run: |
-          pip install --upgrade cython wheel setuptools
-
-      - name: Build APK using Buildozer
+      - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
         with:
           workdir: .
           buildozer_version: stable
@@ -30,11 +20,11 @@ jobs:
       - name: Upload built APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MyApp-APK
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: sriverse-debug-apk
+          path: ./bin/*.apk
 
       - name: Show Build Logs (on failure)
         if: failure()
         run: |
-          echo "=== Last 100 lines of buildozer_output.log ==="
-          tail -n 100 buildozer_output.log || echo "No log found"
+          echo "=== Showing last 100 lines of buildozer_output.log ==="
+          tail -n 100 buildozer_output.log || echo "Log file not found"
