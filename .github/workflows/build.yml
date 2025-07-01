@@ -14,8 +14,9 @@ jobs:
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
         with:
-          workdir: .
-          buildozer_version: stable
+           workdir: .
+           buildozer_version: stable
+           command: "android debug --allow-minsdk-ndkapi-mismatch"
 
       - name: Find and Upload APK
         run: |
