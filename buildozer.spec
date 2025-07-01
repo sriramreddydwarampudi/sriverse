@@ -7,7 +7,7 @@ source.dir = .
 source.include_exts = py,txt,kv
 version = 1.0.0
 
-requirements = python3,kivy==2.2.1,nltk,pronouncing,regex,setuptools
+requirements = python3,kivy==2.2.1,nltk,pronouncing,regex,setuptools,cython
 
 orientation = portrait
 fullscreen = 0
