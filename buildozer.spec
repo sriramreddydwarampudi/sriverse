@@ -1,34 +1,42 @@
 [app]
-title = VersePad
-package.name = versepad
-package.domain = org.versepad.app
-version = 1.0.0
-
-source.dir = .
-source.include_exts = py,kv,txt,pyx
-source.exclude_dirs = tests, test, bin, lib, include, .buildozer
-
-requirements = python3,kivy==2.2.1,nltk,pronouncing,regex,setuptools,cython==0.29.36
-
+title = SriDAW
+package.name = sridaw
+package.domain = org.example
+source.include_exts = py,png,jpg,kv,atlas,ttf
+version = 1.0
+requirements = python3,kivy==2.3.0,pygments,music21,numpy,matplotlib,jnius,android
 orientation = portrait
-fullscreen = 0
-
-android.permissions = INTERNET,READ_MEDIA_IMAGES,READ_MEDIA_AUDIO,READ_MEDIA_VIDEO
-
-android.api = 33
-android.minapi = 33
-android.ndk = 25b
-android.ndk_api = 33
-android.archs = armeabi-v7a,arm64-v8a
-
-p4a.bootstrap = sdl2
-p4a.branch = master
-
-android.allow_backup = True
-android.logcat_filters = *:S python:D
+osx.kivy_version = 2.3.0
+source.dir = .
 
 [buildozer]
 log_level = 2
 warn_on_root = 1
-# Set Cython to use Python 3 syntax
-cython.compiler_directives = language_level=3
+
+[app.android]
+# Optional: uncomment to fix version
+android.api = 30
+android.minapi = 21
+android.ndk = 25b
+android.gradle_dependencies = 
+android.sdk = 24
+# Optional: increase if needed
+android.permissions = WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,INTERNET
+android.add_libs_armeabi_v7a = libfluidsynth.so
+
+# Matplotlib backend configuration
+android.env_vars = MPLBACKEND=agg
+
+[app.android.entrypoint]
+main = main:Music21DAW().run()
+
+[app:source.exclude_patterns]
+# Exclude unnecessary files
+license
+images/
+doc/
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
