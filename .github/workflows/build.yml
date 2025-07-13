@@ -21,7 +21,7 @@ jobs:
         with:
           workdir: .
           buildozer_version: stable
-          command: buildozer android debug --allow-minsdk-ndkapi-mismatch
+          command: buildozer android debug
 
       - name: Find and Upload APK
         run: |
