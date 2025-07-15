@@ -20,10 +20,33 @@ import random
 import os
 from collections import defaultdict
 from nltk.corpus import wordnet, words, cmudict
+import nltk
+import os
+from kivy.utils import platform
 
-nltk.download('words', quiet=True)
-nltk.download('wordnet', quiet=True)
-nltk.download('cmudict', quiet=True)
+def setup_nltk():
+    # Choose app-specific writable directory
+    if platform == 'android':
+        from android.storage import app_storage_path
+        nltk_data_path = os.path.join(app_storage_path(), 'nltk_data')
+    else:
+        nltk_data_path = os.path.join(os.path.expanduser("~"), 'nltk_data')
+
+    # Ensure directory exists
+    os.makedirs(nltk_data_path, exist_ok=True)
+
+    # Point nltk to this path
+    nltk.data.path.append(nltk_data_path)
+
+    # Download corpora if not found
+    for corpus in ['words', 'wordnet', 'cmudict']:
+        try:
+            nltk.data.find(f'corpora/{corpus}')
+        except LookupError:
+            nltk.download(corpus, download_dir=nltk_data_path, quiet=True)
+
+# Call before app init
+setup_nltk()
 
 english_words = set(words.words())
 cmu_dict = cmudict.dict()
