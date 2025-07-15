@@ -1,42 +1,41 @@
 [app]
-title = SriDAW
-package.name = sridaw
+title = VersePad Pro
+package.name = versepad
 package.domain = org.example
-source.include_exts = py,png,jpg,kv,atlas,ttf
-version = 1.0
-requirements = python3,kivy==2.3.0,pygments,music21,numpy,matplotlib,jnius,android
-orientation = portrait
-osx.kivy_version = 2.3.0
 source.dir = .
+source.include_exts = py,kv,ttf
+version = 1.0
+requirements = python3,kivy==2.3.0,nltk,pronouncing
+orientation = portrait
+fullscreen = 0
+osx.kivy_version = 2.3.0
 
 [buildozer]
 log_level = 2
 warn_on_root = 1
 
 [app.android]
-# Optional: uncomment to fix version
 android.api = 30
 android.minapi = 21
 android.ndk = 25b
-android.gradle_dependencies = 
 android.sdk = 24
-# Optional: increase if needed
-android.permissions = WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,INTERNET
-android.add_libs_armeabi_v7a = libfluidsynth.so
+android.permissions = INTERNET
+# Internet is required for downloading nltk corpora at runtime
 
-# Matplotlib backend configuration
-android.env_vars = MPLBACKEND=agg
-
-[app.android.entrypoint]
-main = main:Music21DAW().run()
+# Optional: allow storing temporary downloaded data
+# If you want access to external storage too:
+# android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 
 [app:source.exclude_patterns]
-# Exclude unnecessary files
-license
-images/
-doc/
 *.pyc
 *.pyo
 *.pyd
-.git
-.gitignore
+__pycache__/
+.git*
+docs/
+tests/
+images/
+nltk_data/
+
+[app.android.entrypoint]
+main = main:VersePadApp().run()
