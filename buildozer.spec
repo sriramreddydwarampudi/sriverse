@@ -17,8 +17,8 @@ warn_on_root = 1
 [app.android]
 android.api = 30
 android.minapi = 21
-android.ndk = 25b
-android.sdk = 24
+android.ndk = 25.2.9519653
+android.sdk = 30
 android.permissions = INTERNET
 # Internet is required for downloading nltk corpora at runtime
 

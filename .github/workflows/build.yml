@@ -2,8 +2,10 @@ name: Build APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, add-test-coverage]
   pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   build:
@@ -13,8 +15,13 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       - name: Preinstall Cython (for .pyx → .c)
-        run: pip install cython==0.29.36
+        run: pip install cython==0.29.33
 
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
@@ -38,8 +45,9 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: versepad-apk
+          name: versepad-pro-v4
           path: ${{ env.apk_path }}
+          retention-days: 90
 
       - name: Show Logs on Failure
         if: failure()
